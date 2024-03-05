@@ -1,6 +1,6 @@
 // api.js
 
-export const API_BASE_URL = 'http://localhost:8080/monster-quiz/';
+export const API_BASE_URL = 'https://api.questfinder.app/monster-quiz/';
 
 export const __fetchFunction = (url, method, data) => {
     method = method.toUpperCase();
