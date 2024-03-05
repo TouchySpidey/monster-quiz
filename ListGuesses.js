@@ -1,27 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { guess } from './api';
 
-const ListGuesses = ({ list, user }) => {
-    const [youWon, setYouWon] = useState(false);
+const ListGuesses = ({ list, guess }) => {
     const [filterInput, setFilter] = useState('');
     const filteredList = list.filter(option => option.name.toLowerCase().includes(filterInput.toLowerCase()));
-    console.log({ list, filterInput, filteredList, user });
-
-    const handleItemClick = option => {
-        console.log('Clicked:', option);
-        // Perform any action when an item is clicked
-        guess(option.UID, user).then(data => {
-            console.log({ data });
-            if (data.correct === true) {
-                setYouWon(true);
-            }
-        });
-    };
 
     return (
         <View>
-            {youWon && <Text style={{ color: 'green', fontWeight: 'bold', fontSize: 20 }}>You won!</Text>}
             <Text>Available Options:</Text>
             <TextInput
                 style={styles.filterInput}
@@ -31,7 +16,7 @@ const ListGuesses = ({ list, user }) => {
             />
             <ScrollView style={styles.scrollableList}>
                 {filteredList.map((option) => (
-                    <TouchableOpacity key={option.UID} onPress={() => handleItemClick(option)}
+                    <TouchableOpacity key={option.UID} onPress={() => guess(option.UID)}
                         style={styles.listItem}>
                         <Text>{option.name}</Text>
                     </TouchableOpacity>

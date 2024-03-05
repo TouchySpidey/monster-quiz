@@ -1,91 +1,126 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator, Image } from 'react-native'; // Added import for ActivityIndicator component
-import QuizScreen from './QuizScreen';
-import { guess, getQuiz, API_BASE_URL } from './api';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
-const provider = new GoogleAuthProvider();
-
-
-const firebaseConfig = {
-    apiKey: "AIzaSyCoy5EAXOnBuK4u1DXCSF1JQ-02qvxC_Lk",
-    authDomain: "questfinder-dd466.firebaseapp.com",
-    projectId: "questfinder-dd466",
-    storageBucket: "questfinder-dd466.appspot.com",
-    messagingSenderId: "429219253172",
-    appId: "1:429219253172:web:cb0bef3d530e61486900e1",
-    measurementId: "G-W4QPPSDT2R"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+import { StyleSheet, Text, View, Pressable, Image } from 'react-native'; // Added import for ActivityIndicator component
+import { __fetchFunction, API_BASE_URL } from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ListGuesses from './ListGuesses';
 
 export default function App() {
-    const [isLoading, setIsLoading] = useState(false); // Added state for loading indicator
-    const [isPlaying, setIsPlaying] = useState(false); // Added state for playing quiz
-    const [user, setUser] = useState(null);
-    let authOk = false;
-
-    const [responseData, setResponseData] = useState(null); // Added state for response data
+    const [imgRefresher, setImgRefresher] = useState(0);
+    const [availableOptions, setAvailableOptions] = useState([]);
+    const [hasWon, setHasWon] = useState(false);
+    const [userUID, setUserUID] = useState(false); // Removed userUID from the useState call
+    const [hints, setHints] = useState({});
 
     useEffect(() => {
-        const sub = onAuthStateChanged(auth, (user) => {
-            if (!user || authOk) return;
-            authOk = true;
-            setUser(user);
-            getQuiz()
-                .then((data) => {
-                    console.log(data);
-                    setResponseData(data); // Store response data in state variable
-                    setIsPlaying(true); // Set playing state to true
-                })
-                .finally(() => {
-                    setIsLoading(false); // Set loading state to false after fetching quiz data
-                });
+        getQuiz().then(data => {
+            const copyHints = {};
+            for (let k in data) {
+                switch (k) {
+                    case false: break;
+                    case 'hintSize': copyHints.hintSize = data.hintSize; break;
+                    case 'hintType': copyHints.hintType = data.hintType; break;
+                    case 'hintCR': copyHints.hintCR = data.hintCR; break;
+                    case 'hintHP': copyHints.hintHP = data.hintHP; break;
+                    case 'hintMovement': copyHints.hintMovement = data.hintMovement; break;
+                    case 'hintAlignment': copyHints.hintAlignment = data.hintAlignment; break;
+                    case 'hintAC': copyHints.hintAC = data.hintAC; break;
+                    default: break;
+                }
+            }
+            setHints(copyHints);
+            if (data.correct === true) {
+                setHasWon(true);
+                setImgRefresher(imgRefresher + 1);
+            } else {
+                setAvailableOptions(data.availableOptions);
+            }
         });
-        return sub;
+    }, [userUID]);
+
+    useEffect(() => {
+        AsyncStorage.getItem('userUID').then(data => {
+            if (!data) {
+                data = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0,
+                        v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+                AsyncStorage.setItem('userUID', data);
+            }
+            setUserUID(data);
+        });
     }, []);
 
-    const login = () => {
-        signInWithPopup(auth, provider)
-            .then((result) => {
-                console.log({ result });
-                // This gives you a Google Access Token. You can use it to access the Google API.
-                const credential = GoogleAuthProvider.credentialFromResult(result);
-                console.log({ credential });
-                const token = credential.accessToken;
-                // The signed-in user info.
-                const user = result.user;
-                console.log({ user });
-            }).catch((error) => {
-                // Handle Errors here.
-                const errorCode = error.code;
-                const errorMessage = error.message;
-                // The email of the user's account used.
-                const email = error.customData.email;
-                // The AuthCredential type that was used.
-                const credential = GoogleAuthProvider.credentialFromError(error);
-                // ...
-                console.log({ errorCode, errorMessage, email, credential })
-            });
-    };
+    const getQuiz = async () => {
+        return __fetchFunction('api/quiz', 'GET', { userUID });
+    }
+
+    const guess = async (guessData = false) => {
+        const guessBody = {};
+        switch (guessData) {
+            case false: break;
+            case 'size': guessBody.hintSize = true; break;
+            case 'type': guessBody.hintType = true; break;
+            case 'cr': guessBody.hintCR = true; break;
+            case 'hp': guessBody.hintHP = true; break;
+            case 'movement': guessBody.hintMovement = true; break;
+            case 'alignment': guessBody.hintAlignment = true; break;
+            case 'ac': guessBody.hintAC = true; break;
+            default: guessBody.exactGuessUID = guessData; break;
+        }
+
+        __fetchFunction('api/guess', 'POST', { guess: guessBody, userUID }).then(data => {
+            if (data.correct === true) {
+                setHasWon(true);
+            } else {
+                const copyHints = { ...hints };
+                switch (guessData) {
+                    case false: break;
+                    case 'size': copyHints.hintSize = data.hintSize; break;
+                    case 'type': copyHints.hintType = data.hintType; break;
+                    case 'cr': copyHints.hintCR = data.hintCR; break;
+                    case 'hp': copyHints.hintHP = data.hintHP; break;
+                    case 'movement': copyHints.hintMovement = data.hintMovement; break;
+                    case 'alignment': copyHints.hintAlignment = data.hintAlignment; break;
+                    case 'ac': copyHints.hintAC = data.hintAC; break;
+                    default: break;
+                }
+                setHints(copyHints);
+                setAvailableOptions(data.availableOptions);
+                setImgRefresher(imgRefresher + 1);
+            }
+        });
+    }
 
     return (
         <View style={styles.container}>
             <Text>Welcome to Monster Quiz!</Text>
-            {isLoading ? (
-                <ActivityIndicator size="small" color="#0000ff" />
-            ) : (
-                isPlaying ? <QuizScreen quizData={responseData} user={user} /> : <><Image source={{
-                    uri: API_BASE_URL + '/api/image-source',
-                    headers: {
-                        Pragma: 'no-cache',
-                    },
-                }} style={{ width: 400, height: 400 }} />
-                    <Pressable onPress={login} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
-                        <Text style={styles.text}>Login to start Quiz</Text>
-                    </Pressable></>
-            )}
+            {hasWon && <Text style={{ color: 'green', fontWeight: 'bold', fontSize: 20 }}>You won!</Text>}
+            <Image source={{
+                uri: `${API_BASE_URL}api/image-source?imgRefresher=${imgRefresher}&userUID=${userUID}`,
+                headers: {
+                    Pragma: 'no-cache'
+                }
+            }} style={{ width: 300, height: 300 }} />
+            {hints.hintSize !== undefined ? <Text>{hints.hintSize}</Text> : <Pressable onPress={_ => guess('size')} >
+                <Text>Hint Size</Text>
+            </Pressable>}
+            {hints.hintType !== undefined ? <Text>{hints.hintType}</Text> : <Pressable onPress={_ => guess('type')} >
+                <Text>Hint Type</Text>
+            </Pressable>}
+            {hints.hintCR !== undefined ? <Text>{hints.hintCR}</Text> : <Pressable onPress={_ => guess('cr')} >
+                <Text>Hint CR</Text>
+            </Pressable>}
+            {hints.hintHP !== undefined ? <Text>{hints.hintHP}</Text> : <Pressable onPress={_ => guess('hp')} >
+                <Text>Hint HP</Text>
+            </Pressable>}
+            {hints.hintMovement !== undefined ? <Text>{hints.hintMovement}</Text> : <Pressable onPress={_ => guess('movement')} >
+                <Text>Hint Movement</Text>
+            </Pressable>}
+            {hints.hintAlignment !== undefined ? <Text>{hints.hintAlignment}</Text> : <Pressable onPress={_ => guess('alignment')} >
+                <Text>Hint Alignment</Text>
+            </Pressable>}
+            <ListGuesses list={availableOptions} guess={guess} />
         </View>
     );
 }
