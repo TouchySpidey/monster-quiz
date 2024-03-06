@@ -25,7 +25,8 @@
         "backgroundColor": "#ffffff"
       },
       "googleServicesFile": "./google-services.json",
-      "package": "com.touchyspidey.monsterquiz"
+      "package": "com.touchyspidey.monsterquiz",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
